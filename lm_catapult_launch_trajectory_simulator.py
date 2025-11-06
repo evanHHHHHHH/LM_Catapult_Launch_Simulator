@@ -148,6 +148,14 @@ st.title("LM Catapult Launch Projectile Motion Simulator")
 st.markdown("**Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
 
 # ================================
+# === ADD YOUR DIAGRAM HERE ===
+# ================================
+try:
+    st.image("Catapult_Launch_Dia.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
+except:
+    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
+
+# ================================
 # INPUTS (Text Boxes)
 # ================================
 st.sidebar.header("Input Parameters")
