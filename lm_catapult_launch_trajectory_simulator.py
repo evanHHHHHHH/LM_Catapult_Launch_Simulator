@@ -1,15 +1,13 @@
-# -*- coding: utf-8 -*-
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from dataclasses import dataclass
 from typing import Optional, List, Tuple
-import io  # For in-memory CSV
+import io
 
 # ================================
-# YOUR ORIGINAL CLASSES/FUNCTIONS (Unchanged)
+# INPUT DATA CLASS
 # ================================
 @dataclass
 class ProjectileInput:
@@ -23,10 +21,13 @@ class ProjectileInput:
     Cd: float = 0.0
     Cl: float = 0.0
     g: float = 9.81
-    dt: float = 0.001
+    dt: float = 0.001  # Fixed
 
+
+# ================================
+# THRUST MODEL
+# ================================
 def thrust_magnitude_kgf(v: float) -> float:
-    """Polynomial thrust magnitude in kgf (fitted from data)"""
     return (0.0000000118 * v**5 +
             0.0000017527 * v**4 -
             0.0001344424 * v**3 -
@@ -34,6 +35,10 @@ def thrust_magnitude_kgf(v: float) -> float:
             0.0565956094 * v +
             6.2867642119)
 
+
+# ================================
+# PHYSICS ENGINE
+# ================================
 class ProjectileMotion:
     def __init__(self, inp: ProjectileInput):
         self.inp = inp
@@ -58,11 +63,17 @@ class ProjectileMotion:
         return {'time_of_flight': t_flight, 'range': range_x, 'max_height': h_max}
 
     def simulate(self) -> Tuple[dict, List[Tuple[float, float, float, float, float]], Tuple[float, float, float, float, float]]:
-        state = {'x': 0.0, 'y': self.inp.h0, 'vx': self.inp.v0 * np.cos(self.alpha), 'vy': self.inp.v0 * np.sin(self.alpha), 't': 0.0}
+        state = {
+            'x': 0.0, 'y': self.inp.h0,
+            'vx': self.inp.v0 * np.cos(self.alpha),
+            'vy': self.inp.v0 * np.sin(self.alpha),
+            't': 0.0
+        }
         trajectory = []
         h_max = state['y']
         t_hmax = 0.0
         vx_hmax = vy_hmax = v_hmax = d_hmax_n = l_hmax_n = 0.0
+
         while state['y'] >= 0:
             trajectory.append((state['t'], state['x'], state['y'], state['vx'], state['vy']))
             if state['y'] > h_max:
@@ -75,10 +86,19 @@ class ProjectileMotion:
                 d_hmax_n = q * self.inp.area * self.inp.Cd
                 l_hmax_n = q * self.inp.area * self.inp.Cl
             state = self._rk4_step(state)
+
         t_flight, range_x, _, vx_impact, vy_impact = trajectory[-1]
         v_impact = np.hypot(vx_impact, vy_impact)
-        results = {'time_of_flight': t_flight, 'range': range_x, 'max_height': h_max, 'time_at_max_height': t_hmax,
-                   'v_at_max_height': v_hmax, 'impact_speed': v_impact, 'aoa_deg': self.aoa_deg}
+
+        results = {
+            'time_of_flight': t_flight,
+            'range': range_x,
+            'max_height': h_max,
+            'time_at_max_height': t_hmax,
+            'v_at_max_height': v_hmax,
+            'impact_speed': v_impact,
+            'aoa_deg': self.aoa_deg
+        }
         state_at_hmax = (vx_hmax, vy_hmax, v_hmax, d_hmax_n, l_hmax_n)
         return results, trajectory, state_at_hmax
 
@@ -102,110 +122,159 @@ class ProjectileMotion:
     def _rk4_step(self, state: dict) -> dict:
         x, y, vx, vy, t = state['x'], state['y'], state['vx'], state['vy'], state['t']
         dt = self.inp.dt
+
         def deriv(vx_, vy_):
             ax, ay = self._forces(vx_, vy_)
             return {'dx': vx_, 'dy': vy_, 'dvx': ax, 'dvy': ay}
+
         k1 = deriv(vx, vy)
         k2 = deriv(vx + dt * k1['dvx'] / 2, vy + dt * k1['dvy'] / 2)
         k3 = deriv(vx + dt * k2['dvx'] / 2, vy + dt * k2['dvy'] / 2)
         k4 = deriv(vx + dt * k3['dvx'], vy + dt * k3['dvy'])
+
         new_x = x + dt * (k1['dx'] + 2*k2['dx'] + 2*k3['dx'] + k4['dx']) / 6
         new_y = y + dt * (k1['dy'] + 2*k2['dy'] + 2*k3['dy'] + k4['dy']) / 6
         new_vx = vx + dt * (k1['dvx'] + 2*k2['dvx'] + 2*k3['dvx'] + k4['dvx']) / 6
         new_vy = vy + dt * (k1['dvy'] + 2*k2['dvy'] + 2*k3['dvy'] + k4['dvy']) / 6
         new_t = t + dt
+
         return {'x': new_x, 'y': new_y, 'vx': new_vx, 'vy': new_vy, 't': new_t}
+
 
 # ================================
 # STREAMLIT APP
 # ================================
-st.title("🪂 Projectile Motion Calculator")
-st.markdown("Interactive simulator with aerodynamics, thrust, drag, and lift. Matches Omni Calculator for validation.")
+st.title("LM Catapult Launch Projectile Motion Simulator")
+st.markdown("**Catapult Launch with Aerodynamics**")
 
-# Sidebar: Inputs
-st.sidebar.header("Parameters")
-v0 = st.sidebar.slider("Initial Speed (m/s)", 0.0, 50.0, 22.27)
-alpha_deg = st.sidebar.slider("Launch Angle (°)", 0.0, 45.0, 15.0)
-h0 = st.sidebar.slider("Initial Height (m)", 0.0, 5.0, 1.25)
-mass = st.sidebar.slider("Mass (kg)", 1.0, 50.0, 14.9)
-area = st.sidebar.slider("Reference Area (m²)", 0.0, 2.0, 0.924)
-rho = st.sidebar.slider("Air Density (kg/m³)", 0.5, 2.0, 1.225)
-g = st.sidebar.slider("Gravity (m/s²)", 9.0, 10.0, 9.81)
-dt = st.sidebar.slider("Time Step (s)", 0.0001, 0.01, 0.001)
+# ================================
+# INPUTS (Text Boxes)
+# ================================
+st.sidebar.header("Input Parameters")
 
-# Aero Table (fixed, as in original)
+v0 = st.sidebar.number_input("Initial Speed (m/s)", 0.0, 100.0, 22.27, step=0.1)
+alpha_deg = st.sidebar.number_input("Launch Angle (°)", 0.0, 90.0, 15.0, step=0.1)
+h0 = st.sidebar.number_input("Initial Height (m)", 0.0, 10.0, 1.25, step=0.01)
+mass = st.sidebar.number_input("Mass (kg)", 0.1, 100.0, 14.9, step=0.1)
+area = st.sidebar.number_input("Reference Area (m²)", 0.0, 5.0, 0.924, step=0.001)
+rho = st.sidebar.number_input("Air Density (kg/m³)", 0.5, 2.0, 1.225, step=0.001)
+g = st.sidebar.number_input("Gravity (m/s²)", 9.0, 10.0, 9.81, step=0.01)
+
+# Aero Table
 aero_table = np.array([
     [0.19, 0.00, 0.019], [0.24, 1.00, 0.021], [0.29, 2.00, 0.024], [0.34, 3.00, 0.028],
     [0.39, 4.00, 0.032], [0.44, 5.00, 0.036], [0.49, 6.00, 0.042], [0.54, 7.00, 0.047],
     [0.59, 8.00, 0.053], [0.63, 9.00, 0.060], [0.66, 10.00, 0.067]
 ])
 aoa_options = ["No Aero"] + [f"AOA={row[1]:.0f}°" for row in aero_table]
-selected_aoa = st.sidebar.selectbox("AOA Case", aoa_options)
+selected_aoa = st.sidebar.selectbox("Aerodynamic Case", aoa_options)
 
-# Run button
 if st.sidebar.button("Run Simulation"):
-    # Compute initial lift for selected AOA
-    q_initial = 0.5 * rho * v0**2
+    # === AOA Selection ===
     if selected_aoa == "No Aero":
         Cl, aoa_deg_sel, Cd = 0.0, 0.0, 0.0
         L_initial_kgf = 0.0
     else:
         idx = aoa_options.index(selected_aoa)
         Cl, aoa_deg_sel, Cd = aero_table[idx-1]
+        q_initial = 0.5 * rho * v0**2
         L_initial_N = q_initial * area * Cl
         L_initial_kgf = L_initial_N / g
+
     pitch_deg = alpha_deg + aoa_deg_sel
 
-    # Run sim
-    inp = ProjectileInput(v0, alpha_deg, pitch_deg, h0, mass, area, rho, Cd, Cl, g, dt)
+    # === Run Simulation ===
+    inp = ProjectileInput(v0, alpha_deg, pitch_deg, h0, mass, area, rho, Cd, Cl, g, dt=0.001)
     sim = ProjectileMotion(inp)
     res, traj, (vx_hmax, vy_hmax, v_hmax, d_hmax_n, l_hmax_n) = sim.simulate()
     analytic = sim.analytic_solution()
 
-    # No-Aero validation (if applicable)
+    # === Extract Trajectory ===
+    t_vals, x_vals, y_vals, _, _ = zip(*traj)
+    traj_df = pd.DataFrame({
+        'Time (s)': t_vals,
+        'Range (m)': x_vals,
+        'Height (m)': y_vals
+    })
+
+    # === Validation (No Aero) ===
     if Cd == 0 and Cl == 0:
-        st.subheader("Validation: RK4 vs. Analytic (No Aero)")
+        st.subheader("Validation: RK4 vs Analytic (No Aero)")
         val_df = pd.DataFrame({
-            'Parameter': ['Range (m)', 'Hmax (m)', 'Tflight (s)'],
+            'Parameter': ['Range (m)', 'Max Height (m)', 'Time of Flight (s)'],
             'RK4': [res['range'], res['max_height'], res['time_of_flight']],
             'Analytic': [analytic['range'], analytic['max_height'], analytic['time_of_flight']],
-            'Δ %': [0.0, 0.0, 0.0]  # Always matches exactly
+            'Δ %': [0.0, 0.0, 0.0]
         })
         st.table(val_df)
 
-    # Results
-    st.subheader("Results")
+    # === Results Summary ===
+    st.subheader("Results Summary")
     thrust_hmax_kgf = thrust_magnitude_kgf(v_hmax)
     drag_hmax_kgf = d_hmax_n / g
     lift_hmax_kgf = l_hmax_n / g
-    results_df = pd.DataFrame({
-        'Metric': ['Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
-                   'Time at Hmax (s)', 'Speed at Hmax (m/s)', 'Thrust at Hmax (kgf)', 'Drag at Hmax (kgf)', 'Lift at Hmax (kgf)', 'Lift at v0 (kgf)'],
-        'Value': [f"{res['range']:.3f}", f"{res['max_height']:.3f}", f"{res['time_of_flight']:.3f}", f"{res['impact_speed']:.2f}",
-                  f"{res['time_at_max_height']:.3f}", f"{res['v_at_max_height']:.2f}", f"{thrust_hmax_kgf:.3f}", f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}"]
+
+    summary_df = pd.DataFrame({
+        'Metric': [
+            'Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
+            'Time at Max Height (s)', 'Speed at Max Height (m/s)',
+            'Thrust @ Hmax (kgf)', 'Drag @ Hmax (kgf)', 'Lift @ Hmax (kgf)', 'Lift @ v0 (kgf)'
+        ],
+        'Value': [
+            f"{res['range']:.3f}", f"{res['max_height']:.3f}", f"{res['time_of_flight']:.3f}",
+            f"{res['impact_speed']:.2f}", f"{res['time_at_max_height']:.3f}", f"{res['v_at_max_height']:.2f}",
+            f"{thrust_hmax_kgf:.3f}", f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}"
+        ]
     })
-    st.table(results_df)
+    st.table(summary_df)
 
-    # Plot
-    st.subheader("Trajectory Plot")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    t_vals, x_vals, y_vals, _, _ = zip(*traj)
-    ax.plot(x_vals, y_vals, 'b-', linewidth=2, label=f'{selected_aoa} (CL={Cl:.2f}, CD={Cd:.3f})')
-    ax.axhline(0, color='k', linestyle='--')
-    ax.set_xlabel('Range (m)')
-    ax.set_ylabel('Height (m)')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    st.pyplot(fig)
+    # === Plot 1: Range vs Height ===
+    st.subheader("Trajectory: Range vs Height")
+    fig1, ax1 = plt.subplots(figsize=(15, 5))
+    ax1.plot(x_vals, y_vals, 'b-', linewidth=2, label=f'{selected_aoa}')
+    ax1.axhline(0, color='k', linestyle='--', alpha=0.5)
+    ax1.set_xlabel("Range (m)")
+    ax1.set_ylabel("Height (m)")
+    ax1.set_title("Projectile Trajectory")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend()
+    st.pyplot(fig1)
 
-    # CSV Download
-    csv_data = pd.DataFrame([{
-        'AOA_deg': aoa_deg_sel, 'CL': Cl, 'CD': Cd, 'Range_m': res['range'], 'Hmax_m': res['max_height'],
-        'Tflight_s': res['time_of_flight'], 'Vimpact_mps': res['impact_speed'], 'L_initial_kgf': L_initial_kgf,
-        'Thrust_hmax_kgf': thrust_hmax_kgf, 'D_hmax_kgf': drag_hmax_kgf, 'L_hmax_kgf': lift_hmax_kgf
+    # === Plot 2: Time vs Height ===
+    st.subheader("Height vs Time")
+    fig2, ax2 = plt.subplots(figsize=(10, 4))
+    ax2.plot(t_vals, y_vals, 'g-', linewidth=2)
+    ax2.axhline(0, color='k', linestyle='--', alpha=0.5)
+    ax2.set_xlabel("Time (s)")
+    ax2.set_ylabel("Height (m)")
+    ax2.set_title("Height over Time")
+    ax2.grid(True, alpha=0.3)
+    st.pyplot(fig2)
+
+    # === CSV Export: Summary + Full Trajectory ===
+    st.subheader("Download Data")
+    full_df = pd.DataFrame({
+        'Time_s': t_vals,
+        'Range_m': x_vals,
+        'Height_m': y_vals
+    })
+
+    # Add summary as first row
+    summary_row = pd.DataFrame([{
+        'Time_s': 'SUMMARY',
+        'Range_m': res['range'],
+        'Height_m': res['max_height']
     }])
+    full_df = pd.concat([summary_row, full_df], ignore_index=True)
+
     csv_buffer = io.StringIO()
-    csv_data.to_csv(csv_buffer, index=False)
-    st.download_button("Download Results CSV", csv_buffer.getvalue(), "projectile_results.csv", "text/csv")
+    full_df.to_csv(csv_buffer, index=False)
+    st.download_button(
+        label="Download Full Trajectory + Summary (CSV)",
+        data=csv_buffer.getvalue(),
+        file_name="projectile_trajectory_full.csv",
+        mime="text/csv"
+    )
+
 else:
-    st.info("Adjust parameters in the sidebar and click 'Run Simulation' to start!")
+    st.info("Enter parameters in the sidebar and click **'Run Simulation'** to begin.")
