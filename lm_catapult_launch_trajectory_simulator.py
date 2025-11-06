@@ -146,6 +146,7 @@ class ProjectileMotion:
 # ================================
 st.title("LM Catapult Launch Projectile Motion Simulator")
 st.markdown("**Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
+st.markdown("**Ignore Propeller Thrust, Attitude, and Control Effect**")
 
 # ================================
 # === ADD YOUR DIAGRAM HERE ===
