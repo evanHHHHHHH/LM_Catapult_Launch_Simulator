@@ -230,7 +230,7 @@ if st.sidebar.button("Run Simulation"):
 
     # === Plot 1: Range vs Height ===
     st.subheader("Trajectory: Range vs Height")
-    fig1, ax1 = plt.subplots(figsize=(12.5, 5))
+    fig1, ax1 = plt.subplots(figsize=(10, 4))
     ax1.plot(x_vals, y_vals, 'b-', linewidth=2, label=f'{selected_aoa}')
     ax1.axhline(0, color='k', linestyle='--', alpha=0.5)
     ax1.set_xlabel("Range (m)")
