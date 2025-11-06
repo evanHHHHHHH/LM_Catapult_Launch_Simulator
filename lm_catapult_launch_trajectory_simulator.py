@@ -160,7 +160,7 @@ except:
 # ================================
 st.sidebar.header("Input Parameters")
 
-v0 = st.sidebar.number_input("Initial Speed (m/s)", 0.0, 100.0, 22.27, step=0.1)
+v0 = st.sidebar.number_input("Launch Speed (m/s)", 0.0, 100.0, 22.27, step=0.1)
 alpha_deg = st.sidebar.number_input("Launch Angle (°)", 0.0, 90.0, 15.0, step=0.1)
 h0 = st.sidebar.number_input("Initial Height (m)", 0.0, 10.0, 1.25, step=0.01)
 mass = st.sidebar.number_input("Mass (kg)", 0.1, 100.0, 14.9, step=0.1)
