@@ -145,14 +145,21 @@ class ProjectileMotion:
 # STREAMLIT APP
 # ================================
 st.title("LM Catapult Launch Projectile Motion Simulator")
-st.markdown("**-Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
-st.markdown("**-Ignore Propeller Thrust, Attitude, and Control Effect**")
+st.markdown("**- LM v0 / CL_max 0.66 from CFD**")
+st.markdown("**- Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
+st.markdown("**- Ignore Propeller Thrust, Attitude, and Control Effect**")
+st.markdown("**- Available Dynamic Thrust From Regression Polynomial of Thrust vs Airspeed**")
 
 # ================================
 # === ADD YOUR DIAGRAM HERE ===
 # ================================
 try:
     st.image("Catapult_Launch_Dia.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
+except:
+    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
+
+try:
+    st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
 except:
     st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
 
@@ -234,7 +241,7 @@ if st.sidebar.button("Run Simulation"):
         'Metric': [
             'Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
             'Time at Max Height (s)', 'Speed at Max Height (m/s)',
-            'Thrust @ Hmax (kgf)', 'Drag @ Hmax (kgf)', 'Lift @ Hmax (kgf)', 'Lift @ v0 (kgf)',
+            'Thrust Available at Max Height (kgf)', 'Drag at Max Height (kgf)', 'Lift at Max Height (kgf)', 'Lift at Launch Speed (kgf)',
             '**Stall Speed (m/s)**'
         ],
         'Value': [
