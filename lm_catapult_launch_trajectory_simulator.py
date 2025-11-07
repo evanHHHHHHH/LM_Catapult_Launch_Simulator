@@ -159,7 +159,7 @@ except:
     st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
 
 try:
-    st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
+    st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Dynamic Thrust vs Airspeed", use_column_width=True)
 except:
     st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
 
