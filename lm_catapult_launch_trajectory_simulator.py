@@ -145,7 +145,7 @@ class ProjectileMotion:
 # STREAMLIT APP
 # ================================
 st.title("LM Catapult Launch Projectile Motion Simulator")
-st.markdown("**- LM v0 / CL_max 0.66 from CFD**")
+st.markdown("**- LM v0 / CL_max 0.66 from CFD / Propeller 19*12E / Max RPM 6200**")
 st.markdown("**- Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
 st.markdown("**- Ignore Propeller Thrust, Attitude, and Control Effect**")
 st.markdown("**- Available Dynamic Thrust From Regression Polynomial of Thrust vs Airspeed**")
