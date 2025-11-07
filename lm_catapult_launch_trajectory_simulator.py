@@ -201,6 +201,10 @@ if st.sidebar.button("Run Simulation"):
     res, traj, (vx_hmax, vy_hmax, v_hmax, d_hmax_n, l_hmax_n) = sim.simulate()
     analytic = sim.analytic_solution()
 
+    # === NEW: Calculate Stall Speed ===
+    weight_N = mass * g
+    v_stall = np.sqrt((2 * weight_N) / (rho * area * cl_max)) if cl_max > 0 else 0.0
+
     # === Extract Trajectory ===
     t_vals, x_vals, y_vals, _, _ = zip(*traj)
     traj_df = pd.DataFrame({
