@@ -169,6 +169,9 @@ area = st.sidebar.number_input("Reference Area (m²)", 0.0, 5.0, 0.924, step=0.0
 rho = st.sidebar.number_input("Air Density (kg/m³)", 0.5, 2.0, 1.225, step=0.001)
 g = st.sidebar.number_input("Gravity (m/s²)", 9.0, 10.0, 9.81, step=0.01)
 
+# === NEW: CL_max for Stall Speed ===
+cl_max = st.sidebar.number_input("CL_max (for Stall Speed)", 0.5, 3.0, 1.2, step=0.1)
+
 # Aero Table
 aero_table = np.array([
     [0.19, 0.00, 0.019], [0.24, 1.00, 0.021], [0.29, 2.00, 0.024], [0.34, 3.00, 0.028],
@@ -227,12 +230,14 @@ if st.sidebar.button("Run Simulation"):
         'Metric': [
             'Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
             'Time at Max Height (s)', 'Speed at Max Height (m/s)',
-            'Thrust @ Hmax (kgf)', 'Drag @ Hmax (kgf)', 'Lift @ Hmax (kgf)', 'Lift @ v0 (kgf)'
+            'Thrust @ Hmax (kgf)', 'Drag @ Hmax (kgf)', 'Lift @ Hmax (kgf)', 'Lift @ v0 (kgf)',
+            '**Stall Speed (m/s)**'
         ],
         'Value': [
             f"{res['range']:.3f}", f"{res['max_height']:.3f}", f"{res['time_of_flight']:.3f}",
             f"{res['impact_speed']:.2f}", f"{res['time_at_max_height']:.3f}", f"{res['v_at_max_height']:.2f}",
-            f"{thrust_hmax_kgf:.3f}", f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}"
+            f"{thrust_hmax_kgf:.3f}", f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}",
+            f"**{v_stall:.2f}**"
         ]
     })
     st.table(summary_df)
@@ -275,6 +280,14 @@ if st.sidebar.button("Run Simulation"):
         'Height_m': res['max_height']
     }])
     full_df = pd.concat([summary_row, full_df], ignore_index=True)
+
+    # Add Vstall as extra row
+    vstall_row = pd.DataFrame([{
+        'Time_s': 'STALL_SPEED',
+        'Range_m': v_stall,
+        'Height_m': np.nan
+    }])
+    full_df = pd.concat([full_df, vstall_row], ignore_index=True)
 
     csv_buffer = io.StringIO()
     full_df.to_csv(csv_buffer, index=False)
