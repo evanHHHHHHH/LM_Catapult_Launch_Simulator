@@ -23,19 +23,6 @@ class ProjectileInput:
     g: float = 9.81
     dt: float = 0.001  # Fixed
 
-
-# ================================
-# THRUST MODEL(Should use the thrust calculator)
-# ================================
-def thrust_magnitude_kgf(v: float) -> float:
-    return (0.0000000118 * v**5 +
-            0.0000017527 * v**4 -
-            0.0001344424 * v**3 -
-            0.0009936374 * v**2 -
-            0.0565956094 * v +
-            6.2867642119)
-
-
 # ================================
 # PHYSICS ENGINE
 # ================================
@@ -73,7 +60,6 @@ class ProjectileMotion:
         h_max = state['y']
         t_hmax = 0.0
         vx_hmax = vy_hmax = v_hmax = d_hmax_n = l_hmax_n = 0.0
-
         while state['y'] >= 0:
             trajectory.append((state['t'], state['x'], state['y'], state['vx'], state['vy']))
             if state['y'] > h_max:
@@ -86,10 +72,8 @@ class ProjectileMotion:
                 d_hmax_n = q * self.inp.area * self.inp.Cd
                 l_hmax_n = q * self.inp.area * self.inp.Cl
             state = self._rk4_step(state)
-
         t_flight, range_x, _, vx_impact, vy_impact = trajectory[-1]
         v_impact = np.hypot(vx_impact, vy_impact)
-
         results = {
             'time_of_flight': t_flight,
             'range': range_x,
@@ -122,24 +106,19 @@ class ProjectileMotion:
     def _rk4_step(self, state: dict) -> dict:
         x, y, vx, vy, t = state['x'], state['y'], state['vx'], state['vy'], state['t']
         dt = self.inp.dt
-
         def deriv(vx_, vy_):
             ax, ay = self._forces(vx_, vy_)
             return {'dx': vx_, 'dy': vy_, 'dvx': ax, 'dvy': ay}
-
         k1 = deriv(vx, vy)
         k2 = deriv(vx + dt * k1['dvx'] / 2, vy + dt * k1['dvy'] / 2)
         k3 = deriv(vx + dt * k2['dvx'] / 2, vy + dt * k2['dvy'] / 2)
         k4 = deriv(vx + dt * k3['dvx'], vy + dt * k3['dvy'])
-
         new_x = x + dt * (k1['dx'] + 2*k2['dx'] + 2*k3['dx'] + k4['dx']) / 6
         new_y = y + dt * (k1['dy'] + 2*k2['dy'] + 2*k3['dy'] + k4['dy']) / 6
         new_vx = vx + dt * (k1['dvx'] + 2*k2['dvx'] + 2*k3['dvx'] + k4['dvx']) / 6
         new_vy = vy + dt * (k1['dvy'] + 2*k2['dvy'] + 2*k3['dvy'] + k4['dvy']) / 6
         new_t = t + dt
-
         return {'x': new_x, 'y': new_y, 'vx': new_vx, 'vy': new_vy, 't': new_t}
-
 
 # ================================
 # STREAMLIT APP
@@ -148,10 +127,10 @@ st.title("LM Catapult Launch Projectile Motion Simulator")
 st.markdown("**- LM v0 / CL_max 0.66 from CFD / Propeller 19*12E / Max RPM 6200**")
 st.markdown("**- Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
 st.markdown("**- Ignore Propeller Thrust, Attitude, and Control Effect**")
-st.markdown("**- Available Dynamic Thrust From Regression Polynomial of Thrust vs Airspeed**")
+st.markdown("**- **Thrust is now provided by the Thrust Calculator below**")
 
 # ================================
-# === ADD YOUR DIAGRAM HERE ===
+# === DIAGRAM ===
 # ================================
 try:
     st.image("Catapult_Launch_Dia.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
@@ -159,10 +138,9 @@ except:
     st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
 
 # ================================
-# INPUTS (Text Boxes)
+# INPUTS
 # ================================
 st.sidebar.header("Input Parameters")
-
 v0 = st.sidebar.number_input("Launch Speed (m/s)", 0.0, 100.0, 22.27, step=0.1)
 alpha_deg = st.sidebar.number_input("Launch Angle (°)", 0.0, 90.0, 15.0, step=0.1)
 h0 = st.sidebar.number_input("Initial Height (m)", 0.0, 10.0, 1.25, step=0.01)
@@ -170,8 +148,6 @@ mass = st.sidebar.number_input("Mass (kg)", 0.1, 100.0, 14.9, step=0.1)
 area = st.sidebar.number_input("Reference Area (m²)", 0.0, 5.0, 0.924, step=0.001)
 rho = st.sidebar.number_input("Air Density (kg/m³)", 0.5, 2.0, 1.225, step=0.001)
 g = st.sidebar.number_input("Gravity (m/s²)", 9.0, 10.0, 9.81, step=0.01)
-
-# === NEW: CL_max for Stall Speed ===
 cl_max = st.sidebar.number_input("CL_max (for Stall Speed)", 0.5, 3.0, 1.2, step=0.1)
 
 # Aero Table
@@ -186,15 +162,14 @@ selected_aoa = st.sidebar.selectbox("Aerodynamic Case", aoa_options)
 if st.sidebar.button("Run Simulation"):
     # === AOA Selection ===
     if selected_aoa == "No Aero":
-        Cl, aoa_deg_sel, Cd = 0.0, 0.0, 0.0
+        Cl = Cd = aoa_deg_sel = 0.0
         L_initial_kgf = 0.0
     else:
-        idx = aoa_options.index(selected_aoa)
-        Cl, aoa_deg_sel, Cd = aero_table[idx-1]
+        idx = aoa_options.index(selected_aoa) - 1
+        Cl, aoa_deg_sel, Cd = aero_table[idx]
         q_initial = 0.5 * rho * v0**2
         L_initial_N = q_initial * area * Cl
         L_initial_kgf = L_initial_N / g
-
     pitch_deg = alpha_deg + aoa_deg_sel
 
     # === Run Simulation ===
@@ -203,17 +178,12 @@ if st.sidebar.button("Run Simulation"):
     res, traj, (vx_hmax, vy_hmax, v_hmax, d_hmax_n, l_hmax_n) = sim.simulate()
     analytic = sim.analytic_solution()
 
-    # === NEW: Calculate Stall Speed ===
+    # === Stall Speed ===
     weight_N = mass * g
     v_stall = np.sqrt((2 * weight_N) / (rho * area * cl_max)) if cl_max > 0 else 0.0
 
-    # === Extract Trajectory ===
+    # === Trajectory ===
     t_vals, x_vals, y_vals, _, _ = zip(*traj)
-    traj_df = pd.DataFrame({
-        'Time (s)': t_vals,
-        'Range (m)': x_vals,
-        'Height (m)': y_vals
-    })
 
     # === Validation (No Aero) ===
     if Cd == 0 and Cl == 0:
@@ -228,10 +198,8 @@ if st.sidebar.button("Run Simulation"):
 
     # === Results Summary ===
     st.subheader("Results Summary")
-    thrust_hmax_kgf = thrust_magnitude_kgf(v_hmax)
     drag_hmax_kgf = d_hmax_n / g
     lift_hmax_kgf = l_hmax_n / g
-
     summary_df = pd.DataFrame({
         'Metric': [
             'Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
@@ -248,53 +216,30 @@ if st.sidebar.button("Run Simulation"):
     })
     st.table(summary_df)
 
-    # === Plot 1: Range vs Height ===
+    # === Plots ===
     st.subheader("Trajectory: Range vs Height")
     fig1, ax1 = plt.subplots(figsize=(10, 4))
     ax1.plot(x_vals, y_vals, 'b-', linewidth=2, label=f'{selected_aoa}')
     ax1.axhline(0, color='k', linestyle='--', alpha=0.5)
-    ax1.set_xlabel("Range (m)")
-    ax1.set_ylabel("Height (m)")
-    ax1.set_title("Projectile Trajectory")
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
+    ax1.set_xlabel("Range (m)"); ax1.set_ylabel("Height (m)")
+    ax1.set_title("Projectile Trajectory"); ax1.grid(True, alpha=0.3); ax1.legend()
     st.pyplot(fig1)
 
-    # === Plot 2: Time vs Height ===
     st.subheader("Height vs Time")
     fig2, ax2 = plt.subplots(figsize=(10, 4))
     ax2.plot(t_vals, y_vals, 'g-', linewidth=2)
     ax2.axhline(0, color='k', linestyle='--', alpha=0.5)
-    ax2.set_xlabel("Time (s)")
-    ax2.set_ylabel("Height (m)")
-    ax2.set_title("Height over Time")
-    ax2.grid(True, alpha=0.3)
+    ax2.set_xlabel("Time (s)"); ax2.set_ylabel("Height (m)")
+    ax2.set_title("Height over Time"); ax2.grid(True, alpha=0.3)
     st.pyplot(fig2)
 
-    # === CSV Export: Summary + Full Trajectory ===
+    # === CSV Export ===
     st.subheader("Download Data")
-    full_df = pd.DataFrame({
-        'Time_s': t_vals,
-        'Range_m': x_vals,
-        'Height_m': y_vals
-    })
-
-    # Add summary as first row
-    summary_row = pd.DataFrame([{
-        'Time_s': 'SUMMARY',
-        'Range_m': res['range'],
-        'Height_m': res['max_height']
-    }])
+    full_df = pd.DataFrame({'Time_s': t_vals, 'Range_m': x_vals, 'Height_m': y_vals})
+    summary_row = pd.DataFrame([{'Time_s': 'SUMMARY', 'Range_m': res['range'], 'Height_m': res['max_height']}])
     full_df = pd.concat([summary_row, full_df], ignore_index=True)
-
-    # Add Vstall as extra row
-    vstall_row = pd.DataFrame([{
-        'Time_s': 'STALL_SPEED',
-        'Range_m': v_stall,
-        'Height_m': np.nan
-    }])
+    vstall_row = pd.DataFrame([{'Time_s': 'STALL_SPEED', 'Range_m': v_stall, 'Height_m': np.nan}])
     full_df = pd.concat([full_df, vstall_row], ignore_index=True)
-
     csv_buffer = io.StringIO()
     full_df.to_csv(csv_buffer, index=False)
     st.download_button(
@@ -303,7 +248,6 @@ if st.sidebar.button("Run Simulation"):
         file_name="projectile_trajectory_full.csv",
         mime="text/csv"
     )
-
 else:
     st.info("Enter parameters in the sidebar and click **'Run Simulation'** to begin.")
 
@@ -314,10 +258,6 @@ st.title("Thrust Calculator")
 st.markdown("**- Propeller APC 19*12E / Max RPM 6200**")
 st.markdown("**- APC 19*12E TDS https://www.apcprop.com/files/PER3_19x12E.dat?v=6cc98ba2045f**")
 
-# ================================
-# === ADD YOUR DIAGRAM HERE ===
-# ================================
-
 try:
     st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Dynamic Thrust vs Airspeed", use_column_width=True)
 except:
@@ -326,39 +266,25 @@ except:
 st.sidebar.markdown("---")
 st.sidebar.subheader("Thrust Calculator (APC 19×12E)")
 
-# ----------------------------------------------------------------------
-# Polynomial coefficients FROM GRAPH → output in NEWTONS
-# Format for np.polyval: [a, b, c] where y = a*x² + b*x + c
-# ----------------------------------------------------------------------
 RPM_POLY_N = {
-    1000: [-0.03061, -0.09859,  1.84639],   # y = -0.03061x² -0.09859x +1.84639
-    2000: [-0.03036, -0.19903,  7.19558],
+    1000: [-0.03061, -0.09859, 1.84639],
+    2000: [-0.03036, -0.19903, 7.19558],
     3000: [-0.03044, -0.29826, 15.92096],
     4000: [-0.03074, -0.39428, 27.60008],
     5000: [-0.03123, -0.48526, 43.32771],
     6000: [-0.03187, -0.57053, 61.43988],
-    7000: [-0.03273, -0.64616, 82.22525]    # NEGATIVE a for high RPM
+    7000: [-0.03273, -0.64616, 82.22525]
 }
+G = 9.81
 
-G = 9.81  # 1 kgf = 9.81 N
-
-# ----------------------------------------------------------------------
-# Evaluate thrust in Newtons
-# ----------------------------------------------------------------------
 def thrust_N(coeffs, v):
     return np.polyval(coeffs, v)
 
-# ----------------------------------------------------------------------
-# Convert to kgf
-# ----------------------------------------------------------------------
 def thrust_kgf(v, rpm):
     if rpm not in RPM_POLY_N:
         return 0.0
     return thrust_N(RPM_POLY_N[rpm], v) / G
 
-# ----------------------------------------------------------------------
-# Build table
-# ----------------------------------------------------------------------
 def build_thrust_table(v):
     data = []
     for rpm in sorted(RPM_POLY_N.keys()):
@@ -367,86 +293,60 @@ def build_thrust_table(v):
         data.append([rpm, f"{sign}{t_kgf:.3f}"])
     return pd.DataFrame(data, columns=["RPM", "Thrust (kgf)"])
 
-# ----------------------------------------------------------------------
-# Interpolate between RPMs
-# ----------------------------------------------------------------------
 def interpolate_thrust(v, rpm):
     rpms = sorted(RPM_POLY_N.keys())
     thrusts = [thrust_kgf(v, r) for r in rpms]
     return np.interp(rpm, rpms, thrusts)
 
-# ----------------------------------------------------------------------
-# UI
-# ----------------------------------------------------------------------
 airspeed = st.sidebar.number_input("Airspeed (m/s)", 0.0, 50.0, 0.0, 0.5)
 rpm_input = st.sidebar.number_input("Motor RPM", 0, 8000, 5500, 100)
 
 if st.sidebar.button("Calculate Thrust"):
-    # Table
     table = build_thrust_table(airspeed)
     st.subheader(f"Thrust vs RPM @ {airspeed:.1f} m/s")
     st.table(table)
 
-    # Interpolated result
     result_kgf = interpolate_thrust(airspeed, rpm_input)
     sign = "+" if result_kgf >= 0 else ""
-
-    # LARGE, BOLD, COLORED OUTPUT
     st.markdown(
-    f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
-    unsafe_allow_html=True
+        f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
+        unsafe_allow_html=True
     )
     st.markdown(
-    f"<h4 style='text-align: center; color: #555;'>@ {rpm_input:,} RPM | {airspeed:.1f} m/s airspeed</h4>",
-    unsafe_allow_html=True
+        f"<h4 style='text-align: center; color: #555;'>@ {rpm_input:,} RPM | {airspeed:.1f} m/s airspeed</h4>",
+        unsafe_allow_html=True
     )
 
-    # Plot
     fig, ax = plt.subplots(figsize=(6, 3.5))
     rpms = sorted(RPM_POLY_N.keys())
     thrusts = [thrust_kgf(airspeed, r) for r in rpms]
     ax.plot(rpms, thrusts, "o-", color="teal", label="Curve")
     ax.scatter([rpm_input], [result_kgf], color="red", s=80, zorder=5, label=f"{rpm_input} RPM")
     ax.axhline(0, color="gray", linestyle="--", alpha=0.7)
-    ax.set_xlabel("RPM")
-    ax.set_ylabel("Thrust (kgf)")
-    ax.set_title(f"19×12E @ {airspeed:.1f} m/s")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    ax.set_xlabel("RPM"); ax.set_ylabel("Thrust (kgf)")
+    ax.set_title(f"19×12E @ {airspeed:.1f} m/s"); ax.grid(True, alpha=0.3); ax.legend()
     st.pyplot(fig)
 
-
 # ======================================================================
-# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M 
-#   →  T comes from the *Thrust Calculator* (result_kgf)
+# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M
+# → T comes from Thrust Calculator (result_kgf)
 # ======================================================================
 st.markdown("---")
 st.subheader("Rate of Climb (ROC) from Last Simulation")
 
-# --------------------------------------------------------------
-# 1. Remember the last simulation inputs (they exist after a run)
-# --------------------------------------------------------------
-if ('v0' in locals() and 'mass' in locals() and 'rho' in locals() and 
+if ('v0' in locals() and 'mass' in locals() and 'rho' in locals() and
     'area' in locals() and 'Cd' in locals()):
     
-    # ----- Drag at launch speed (same as in the simulation) -----
-    q0   = 0.5 * rho * v0**2
-    D_N  = q0 * area * Cd
+    q0 = 0.5 * rho * v0**2
+    D_N = q0 * area * Cd
     D_kgf = D_N / g
 
-    # ----- Thrust – **use the value from the Thrust Calculator** -----
-    # `result_kgf` is defined only when the user clicks "Calculate Thrust"
-    if 'result_kgf' in locals():
-        T_kgf = result_kgf
-    else:
-        # fallback – use the polynomial (keeps the section functional)
-        T_kgf = thrust_magnitude_kgf(v0)
+    # Use Thrust Calculator result if available
+    T_kgf = result_kgf if 'result_kgf' in locals() else 0.0
 
-    # ----- ROC formula ------------------------------------------------
     excess_kgf = T_kgf - D_kgf
     roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
 
-    # ----- Pretty display --------------------------------------------
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Launch Speed (v)", f"{v0:.1f} m/s")
