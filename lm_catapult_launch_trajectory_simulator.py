@@ -158,11 +158,6 @@ try:
 except:
     st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
 
-try:
-    st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Dynamic Thrust vs Airspeed", use_column_width=True)
-except:
-    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
-
 # ================================
 # INPUTS (Text Boxes)
 # ================================
@@ -316,8 +311,20 @@ else:
 # THRUST CALCULATOR – FINAL CORRECT VERSION (N → kgf)
 # ======================================================================
 st.title("Thrust Calculator")
+st.markdown("**- Propeller APC 19*12E / Max RPM 6200**")
+st.markdown("**- APC 19*12E TDS https://www.apcprop.com/files/PER3_19x12E.dat?v=6cc98ba2045f**")
+
+# ================================
+# === ADD YOUR DIAGRAM HERE ===
+# ================================
+
+try:
+    st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Dynamic Thrust vs Airspeed", use_column_width=True)
+except:
+    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
+
 st.sidebar.markdown("---")
-st.sidebar.subheader("Thrust Calculator (19×12E)")
+st.sidebar.subheader("Thrust Calculator (APC 19×12E)")
 
 # ----------------------------------------------------------------------
 # Polynomial coefficients FROM GRAPH → output in NEWTONS
@@ -383,7 +390,9 @@ if st.sidebar.button("Calculate Thrust"):
     # Interpolated result
     result_kgf = interpolate_thrust(airspeed, rpm_input)
     sign = "+" if result_kgf >= 0 else ""
-    st.markdown(f"**Thrust at {rpm_input:,} RPM = {sign}{result_kgf:.3f} kgf**")
+    st.markdown(
+    f"<h1 style='text-align: center; color: #FF4500;'><b>{sign}{thrust_kgf:.3f} kgf</b></h1>",
+    unsafe_allow_html=True)
 
     # Plot
     fig, ax = plt.subplots(figsize=(6, 3.5))
