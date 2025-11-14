@@ -390,9 +390,16 @@ if st.sidebar.button("Calculate Thrust"):
     # Interpolated result
     result_kgf = interpolate_thrust(airspeed, rpm_input)
     sign = "+" if result_kgf >= 0 else ""
+
+    # LARGE, BOLD, COLORED OUTPUT
     st.markdown(
-    f"<h1 style='text-align: center; color: #FF4500;'><b>{sign}{thrust_kgf:.3f} kgf</b></h1>",
-    unsafe_allow_html=True)
+    f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
+    unsafe_allow_html=True
+    )
+    st.markdown(
+    f"<h4 style='text-align: center; color: #555;'>@ {rpm_input:,} RPM | {airspeed:.1f} m/s airspeed</h4>",
+    unsafe_allow_html=True
+    )
 
     # Plot
     fig, ax = plt.subplots(figsize=(6, 3.5))
