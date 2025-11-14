@@ -150,6 +150,15 @@ rho = st.sidebar.number_input("Air Density (kg/m³)", 0.5, 2.0, 1.225, step=0.00
 g = st.sidebar.number_input("Gravity (m/s²)", 9.0, 10.0, 9.81, step=0.01)
 cl_max = st.sidebar.number_input("CL_max (for Stall Speed)", 0.5, 3.0, 1.2, step=0.1)
 
+# === Save to session_state ===
+st.session_state.sim_run = True
+st.session_state.v0 = v0
+st.session_state.mass = mass
+st.session_state.rho = rho
+st.session_state.area = area
+st.session_state.Cd = Cd
+st.session_state.g = g
+
 # Aero Table
 aero_table = np.array([
     [0.19, 0.00, 0.019], [0.24, 1.00, 0.021], [0.29, 2.00, 0.024], [0.34, 3.00, 0.028],
@@ -307,6 +316,7 @@ if st.sidebar.button("Calculate Thrust"):
     st.table(table)
 
     result_kgf = interpolate_thrust(airspeed, rpm_input)
+    st.session_state.result_kgf = result_kgf
     sign = "+" if result_kgf >= 0 else ""
     st.markdown(
         f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
@@ -331,43 +341,43 @@ if st.sidebar.button("Calculate Thrust"):
 # NEW: ROC CALCULATION BUTTON (uses simulation + thrust calculator)
 # ======================================================================
 if st.sidebar.button("Calculate ROC"):
-    # --- 1. Must have run simulation first ---
-    if ('v0' not in locals() or 'mass' not in locals() or 
-        'rho' not in locals() or 'area' not in locals() or 'Cd' not in locals()):
+    # --- Load from session_state (saved during simulation) ---
+    if not st.session_state.get("sim_run", False):
         st.warning("Please **Run Simulation** first to get launch conditions.")
     else:
-        # --- 2. Drag at launch speed ---
+        v0 = st.session_state.v0
+        mass = st.session_state.mass
+        rho = st.session_state.rho
+        area = st.session_state.area
+        Cd = st.session_state.Cd
+        g = st.session_state.g
+
+        # --- Drag ---
         q0 = 0.5 * rho * v0**2
         D_N = q0 * area * Cd
         D_kgf = D_N / g
 
-        # --- 3. Thrust from calculator ---
-        if 'result_kgf' not in locals():
+        # --- Thrust ---
+        T_kgf = st.session_state.get("result_kgf", 0.0)
+        if T_kgf == 0.0:
             st.warning("Please **Calculate Thrust** first to get T.")
-            T_kgf = 0.0
         else:
-            T_kgf = result_kgf
+            # --- ROC ---
+            excess_kgf = T_kgf - D_kgf
+            roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
 
-        # --- 4. ROC formula ---
-        excess_kgf = T_kgf - D_kgf
-        roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
+            # --- Display ---
+            st.markdown("---")
+            st.subheader("Rate of Climb (ROC) = v × (T − D) / M")
 
-        # --- 5. Display results ---
-        st.markdown("---")
-        st.subheader("Rate of Climb (ROC) = v × (T − D) / M")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: st.metric("Speed (v)", f"{v0:.1f} m/s")
+            with col2: st.metric("Drag (D)", f"{D_kgf:.3f} kgf")
+            with col3: st.metric("Thrust (T)", f"{T_kgf:.3f} kgf")
+            with col4: st.metric("ROC", f"{roc:.2f} m/s", delta=f"{roc:+.1f}")
 
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Speed (v)", f"{v0:.1f} m/s")
-        with col2:
-            st.metric("Drag (D)", f"{D_kgf:.3f} kgf")
-        with col3:
-            st.metric("Thrust (T)", f"{T_kgf:.3f} kgf")
-        with col4:
-            st.metric("ROC", f"{roc:.2f} m/s", delta=f"{roc:+.1f}")
-
-        st.latex(
-            r"\text{ROC} = v \times \frac{T - D}{M} = "
-            f"{v0:.1f} \\times \\frac{{{T_kgf:.3f} - {D_kgf:.3f}}}{{{mass:.2f}}} = "
-            f"\\boxed{{{roc:.2f}\\,\\text{{m/s}}}}"
-        )
+            st.latex(
+                r"\text{ROC} = v \times \frac{T - D}{M} = "
+                f"{v0:.1f} \\times \\frac{{{T_kgf:.3f} - {D_kgf:.3f}}}{{{mass:.2f}}} = "
+                f"\\boxed{{{roc:.2f}\\,\\text{{m/s}}}}"
+            )
