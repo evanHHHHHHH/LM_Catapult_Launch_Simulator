@@ -414,3 +414,43 @@ if st.sidebar.button("Calculate Thrust"):
     ax.grid(True, alpha=0.3)
     ax.legend()
     st.pyplot(fig)
+
+
+# ======================================================================
+# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M (Using Last Simulation Inputs)
+# ======================================================================
+st.markdown("---")
+st.subheader("Rate of Climb (ROC) from Last Simulation")
+
+# Use the most recent simulation values (if available)
+if 'v0' in locals() and 'mass' in locals() and 'rho' in locals() and 'area' in locals() and 'Cd' in locals():
+    # Recalculate drag at launch speed
+    q0 = 0.5 * rho * v0**2
+    D_N = q0 * area * Cd
+    D_kgf = D_N / g
+
+    # Get thrust at current airspeed (same as in Thrust Calculator)
+    T_kgf = thrust_magnitude_kgf(v0)
+
+    # ROC formula
+    excess_kgf = T_kgf - D_kgf
+    roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
+
+    # Display in columns
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Launch Speed (v)", f"{v0:.1f} m/s")
+    with col2:
+        st.metric("Drag (D)", f"{D_kgf:.3f} kgf")
+    with col3:
+        st.metric("Thrust (T)", f"{T_kgf:.3f} kgf")
+    with col4:
+        st.metric("ROC", f"{roc:.2f} m/s", delta=f"{roc:+.1f}")
+
+    st.latex(
+        r"\text{ROC} = v \times \frac{T - D}{M} = "
+        f"{v0:.1f} \\times \\frac{{{T_kgf:.3f} - {D_kgf:.3f}}}{{{mass:.2f}}} = "
+        f"\\boxed{{{roc:.2f}\\,\\text{{m/s}}}}"
+    )
+else:
+    st.info("Run the **Projectile Simulator** first to enable ROC calculation.")
