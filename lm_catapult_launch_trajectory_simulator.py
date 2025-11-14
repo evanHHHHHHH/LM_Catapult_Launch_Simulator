@@ -127,15 +127,19 @@ st.title("LM Catapult Launch Projectile Motion Simulator")
 st.markdown("**- LM v0 / CL_max 0.66 from CFD / Propeller 19*12E / Max RPM 6200**")
 st.markdown("**- Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
 st.markdown("**- Ignore Propeller Thrust, Attitude, and Control Effect**")
-st.markdown("**- Thrust is now provided by the Thrust Calculator below**")
+st.markdown("**- **Thrust provided by Thrust Calculator below**")
+
+# Initialize session state
+if "sim_run" not in st.session_state:
+    st.session_state.sim_run = False
 
 # ================================
-# === DIAGRAM ===
+# DIAGRAM
 # ================================
 try:
     st.image("Catapult_Launch_Dia.jpg", caption="Catapult Launch Geometry & Forces", use_column_width=True)
 except:
-    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
+    st.warning("Diagram image 'Catapult_Launch_Dia.jpg' not found.")
 
 # ================================
 # INPUTS
@@ -159,6 +163,9 @@ aero_table = np.array([
 aoa_options = ["No Aero"] + [f"AOA={row[1]:.0f}°" for row in aero_table]
 selected_aoa = st.sidebar.selectbox("Aerodynamic Case", aoa_options)
 
+# ================================
+# RUN SIMULATION
+# ================================
 if st.sidebar.button("Run Simulation"):
     # === AOA Selection ===
     if selected_aoa == "No Aero":
@@ -171,6 +178,16 @@ if st.sidebar.button("Run Simulation"):
         L_initial_N = q_initial * area * Cl
         L_initial_kgf = L_initial_N / g
     pitch_deg = alpha_deg + aoa_deg_sel
+
+    # === Save to session_state ===
+    st.session_state.sim_run = True
+    st.session_state.v0 = v0
+    st.session_state.mass = mass
+    st.session_state.rho = rho
+    st.session_state.area = area
+    st.session_state.Cd = Cd
+    st.session_state.g = g
+    st.session_state.L_initial_kgf = L_initial_kgf
 
     # === Run Simulation ===
     inp = ProjectileInput(v0, alpha_deg, pitch_deg, h0, mass, area, rho, Cd, Cl, g, dt=0.001)
@@ -252,7 +269,7 @@ else:
     st.info("Enter parameters in the sidebar and click **'Run Simulation'** to begin.")
 
 # ======================================================================
-# THRUST CALCULATOR – FINAL CORRECT VERSION (N → kgf)
+# THRUST CALCULATOR
 # ======================================================================
 st.title("Thrust Calculator")
 st.markdown("**- Propeller APC 19*12E / Max RPM 6200**")
@@ -261,7 +278,7 @@ st.markdown("**- APC 19*12E TDS https://www.apcprop.com/files/PER3_19x12E.dat?v=
 try:
     st.image("Thrsutvsspeed_polynimial_1912E.jpg", caption="Dynamic Thrust vs Airspeed", use_column_width=True)
 except:
-    st.warning("Dia image 'dia.jpg' not found. Upload it to the repo root.")
+    st.warning("Thrust diagram not found.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Thrust Calculator (APC 19×12E)")
@@ -307,6 +324,8 @@ if st.sidebar.button("Calculate Thrust"):
     st.table(table)
 
     result_kgf = interpolate_thrust(airspeed, rpm_input)
+    st.session_state.result_kgf = result_kgf  # Save to session
+
     sign = "+" if result_kgf >= 0 else ""
     st.markdown(
         f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
@@ -328,10 +347,9 @@ if st.sidebar.button("Calculate Thrust"):
     st.pyplot(fig)
 
 # ======================================================================
-# NEW: ROC CALCULATION BUTTON (uses simulation + thrust calculator)
+# CALCULATE ROC BUTTON (uses session_state)
 # ======================================================================
 if st.sidebar.button("Calculate ROC"):
-    # --- Load from session_state (saved during simulation) ---
     if not st.session_state.get("sim_run", False):
         st.warning("Please **Run Simulation** first to get launch conditions.")
     else:
@@ -342,21 +360,20 @@ if st.sidebar.button("Calculate ROC"):
         Cd = st.session_state.Cd
         g = st.session_state.g
 
-        # --- Drag ---
+        # Drag
         q0 = 0.5 * rho * v0**2
         D_N = q0 * area * Cd
         D_kgf = D_N / g
 
-        # --- Thrust ---
+        # Thrust
         T_kgf = st.session_state.get("result_kgf", 0.0)
         if T_kgf == 0.0:
             st.warning("Please **Calculate Thrust** first to get T.")
         else:
-            # --- ROC ---
+            # ROC
             excess_kgf = T_kgf - D_kgf
             roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
 
-            # --- Display ---
             st.markdown("---")
             st.subheader("Rate of Climb (ROC) = v × (T − D) / M")
 
