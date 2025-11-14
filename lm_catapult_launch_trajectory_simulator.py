@@ -150,15 +150,6 @@ rho = st.sidebar.number_input("Air Density (kg/m³)", 0.5, 2.0, 1.225, step=0.00
 g = st.sidebar.number_input("Gravity (m/s²)", 9.0, 10.0, 9.81, step=0.01)
 cl_max = st.sidebar.number_input("CL_max (for Stall Speed)", 0.5, 3.0, 1.2, step=0.1)
 
-# === Save to session_state ===
-st.session_state.sim_run = True
-st.session_state.v0 = v0
-st.session_state.mass = mass
-st.session_state.rho = rho
-st.session_state.area = area
-st.session_state.Cd = Cd
-st.session_state.g = g
-
 # Aero Table
 aero_table = np.array([
     [0.19, 0.00, 0.019], [0.24, 1.00, 0.021], [0.29, 2.00, 0.024], [0.34, 3.00, 0.028],
@@ -316,7 +307,6 @@ if st.sidebar.button("Calculate Thrust"):
     st.table(table)
 
     result_kgf = interpolate_thrust(airspeed, rpm_input)
-    st.session_state.result_kgf = result_kgf
     sign = "+" if result_kgf >= 0 else ""
     st.markdown(
         f"<h2 style='text-align: center; color: #1E90FF;'><b>Thrust = {sign}{result_kgf:.3f} kgf</b></h2>",
