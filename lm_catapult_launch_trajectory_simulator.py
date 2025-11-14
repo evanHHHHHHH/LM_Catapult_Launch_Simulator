@@ -25,15 +25,15 @@ class ProjectileInput:
 
 
 # ================================
-# THRUST MODEL
+# THRUST MODEL(Should use the thrust calculator)
 # ================================
-def thrust_magnitude_kgf(v: float) -> float:
-    return (0.0000000118 * v**5 +
-            0.0000017527 * v**4 -
-            0.0001344424 * v**3 -
-            0.0009936374 * v**2 -
-            0.0565956094 * v +
-            6.2867642119)
+#def thrust_magnitude_kgf(v: float) -> float:
+    #return (0.0000000118 * v**5 +
+            #0.0000017527 * v**4 -
+            #0.0001344424 * v**3 -
+            #0.0009936374 * v**2 -
+            #0.0565956094 * v +
+            #6.2867642119)
 
 
 # ================================
@@ -236,13 +236,13 @@ if st.sidebar.button("Run Simulation"):
         'Metric': [
             'Range (m)', 'Max Height (m)', 'Time of Flight (s)', 'Impact Speed (m/s)',
             'Time at Max Height (s)', 'Speed at Max Height (m/s)',
-            'Thrust Available at Max Height (kgf)', 'Drag at Max Height (kgf)', 'Lift at Max Height (kgf)', 'Lift at Launch Speed (kgf)',
+            'Drag at Max Height (kgf)', 'Lift at Max Height (kgf)', 'Lift at Launch Speed (kgf)',
             '**Stall Speed (m/s)**'
         ],
         'Value': [
             f"{res['range']:.3f}", f"{res['max_height']:.3f}", f"{res['time_of_flight']:.3f}",
             f"{res['impact_speed']:.2f}", f"{res['time_at_max_height']:.3f}", f"{res['v_at_max_height']:.2f}",
-            f"{thrust_hmax_kgf:.3f}", f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}",
+            f"{drag_hmax_kgf:.3f}", f"{lift_hmax_kgf:.3f}", f"{L_initial_kgf:.3f}",
             f"**{v_stall:.2f}**"
         ]
     })
@@ -417,26 +417,36 @@ if st.sidebar.button("Calculate Thrust"):
 
 
 # ======================================================================
-# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M (Using Last Simulation Inputs)
+# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M 
+#   →  T comes from the *Thrust Calculator* (result_kgf)
 # ======================================================================
 st.markdown("---")
 st.subheader("Rate of Climb (ROC) from Last Simulation")
 
-# Use the most recent simulation values (if available)
-if 'v0' in locals() and 'mass' in locals() and 'rho' in locals() and 'area' in locals() and 'Cd' in locals():
-    # Recalculate drag at launch speed
-    q0 = 0.5 * rho * v0**2
-    D_N = q0 * area * Cd
+# --------------------------------------------------------------
+# 1. Remember the last simulation inputs (they exist after a run)
+# --------------------------------------------------------------
+if ('v0' in locals() and 'mass' in locals() and 'rho' in locals() and 
+    'area' in locals() and 'Cd' in locals()):
+    
+    # ----- Drag at launch speed (same as in the simulation) -----
+    q0   = 0.5 * rho * v0**2
+    D_N  = q0 * area * Cd
     D_kgf = D_N / g
 
-    # Get thrust at current airspeed (same as in Thrust Calculator)
-    T_kgf = thrust_magnitude_kgf(v0)
+    # ----- Thrust – **use the value from the Thrust Calculator** -----
+    # `result_kgf` is defined only when the user clicks "Calculate Thrust"
+    if 'result_kgf' in locals():
+        T_kgf = result_kgf
+    else:
+        # fallback – use the polynomial (keeps the section functional)
+        T_kgf = thrust_magnitude_kgf(v0)
 
-    # ROC formula
+    # ----- ROC formula ------------------------------------------------
     excess_kgf = T_kgf - D_kgf
     roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
 
-    # Display in columns
+    # ----- Pretty display --------------------------------------------
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Launch Speed (v)", f"{v0:.1f} m/s")
