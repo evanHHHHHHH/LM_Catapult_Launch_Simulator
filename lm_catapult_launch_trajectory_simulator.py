@@ -311,3 +311,86 @@ if st.sidebar.button("Run Simulation"):
 
 else:
     st.info("Enter parameters in the sidebar and click **'Run Simulation'** to begin.")
+
+
+# ======================================================================
+# INDEPENDENT THRUST CALCULATOR
+# ======================================================================
+st.sidebar.markdown("---")
+st.sidebar.subheader("Thrust Calculator (19×12E)")
+
+# ---- Polynomial coefficients for each RPM (from the graph) ----
+#   rpm = 1000 → 7000  (step 1000)
+#   Coefficients are stored as [a5, a4, a3, a2, a1, a0] for
+#   thrust(kgf) = a5*v^5 + a4*v^4 + a3*v^3 + a2*v^2 + a1*v + a0
+RPM_POLY = {
+    1000: np.array([ 0.0000000000,  0.0000000000,  0.0000000000,
+                    -0.03061,      -0.09859,      1.84639]),
+    2000: np.array([ 0.0000000000,  0.0000000000, -0.000036,
+                    -0.03036,      -0.19903,      7.19558]),
+    3000: np.array([ 0.0000000000,  0.0000000000, 0.0000000000,
+                    -0.0003044,      -0.29826,   15.92096]),
+    4000: np.array([ 0.0000000000,  0.0000000000, 0.0000000000,
+                     -0.0003074,    -0.39428,      27.60008]),
+    5000: np.array([ 0.0000000000,  0.0000000000, 0.0000000000,
+                    -0.0003123,   -0.04852,      43.32771]),
+    6000: np.array([ 0.0000000000,  0.0000000000, 0.0000000000,
+                    -0.0003187,   -0.57053,      61.43988]),
+    7000: np.array([ 0.0000000000,  0.0000000000, 0.0000000000,
+                     0.0003273,   -0.64616,     82.22525])
+}
+
+# ---- Helper: evaluate one polynomial at a given airspeed ----
+def _eval_poly(coeffs: np.ndarray, v: float) -> float:
+    return np.polyval(coeffs[::-1], v)   # np.polyval expects [a0, a1, …]
+
+# ---- Step 1 – Build the RPM-vs-Thrust table for a given airspeed ----
+def build_rpm_thrust_table(airspeed: float) -> pd.DataFrame:
+    rpm_list = sorted(RPM_POLY.keys())
+    thrust_list = [_eval_poly(RPM_POLY[rpm], airspeed) for rpm in rpm_list]
+    # Clip negative thrust (physically impossible)
+    thrust_list = [max(0.0, t) for t in thrust_list]
+    return pd.DataFrame({"RPM": rpm_list, "Thrust (kgf)": thrust_list})
+
+# ---- Step 2 – Interpolate thrust for a user-defined RPM ----
+def interpolate_thrust(table: pd.DataFrame, rpm: float) -> float:
+    if rpm <= table["RPM"].min():
+        return float(table.loc[table["RPM"].idxmin(), "Thrust (kgf)"])
+    if rpm >= table["RPM"].max():
+        return float(table.loc[table["RPM"].idxmax(), "Thrust (kgf)"])
+    # Linear interpolation between the two nearest points
+    from scipy.interpolate import interp1d
+    f = interp1d(table["RPM"], table["Thrust (kgf)"], kind="linear")
+    return float(f(rpm))
+
+# ---- UI for the calculator ------------------------------------------------
+airspeed_calc = st.sidebar.number_input(
+    "Airspeed for table (m/s)", min_value=0.0, max_value=50.0, value=20.0, step=0.5
+)
+rpm_user = st.sidebar.number_input(
+    "Motor RPM for final thrust", min_value=0, max_value=8000, value=5500, step=100
+)
+
+if st.sidebar.button("Calculate Thrust Table & Final Thrust"):
+    # Step 1
+    table = build_rpm_thrust_table(airspeed_calc)
+    st.subheader(f"Thrust vs RPM @ {airspeed_calc:.1f} m/s")
+    st.table(table.style.format({"Thrust (kgf)": "{:.3f}"}))
+
+    # Step 2
+    final_thrust = interpolate_thrust(table, rpm_user)
+    st.markdown(
+        f"**Thrust at {rpm_user:,} RPM = {final_thrust:.3f} kgf**"
+    )
+
+    # Optional: quick plot of the table
+    fig_thr, ax_thr = plt.subplots(figsize=(6, 3.5))
+    ax_thr.plot(table["RPM"], table["Thrust (kgf)"], "o-", color="#1f77b4")
+    ax_thr.scatter([rpm_user], [final_thrust], color="red", zorder=5,
+                   label=f"{rpm_user:,} RPM")
+    ax_thr.set_xlabel("RPM")
+    ax_thr.set_ylabel("Thrust (kgf)")
+    ax_thr.set_title(f"Thrust @ {airspeed_calc:.1f} m/s")
+    ax_thr.grid(True, alpha=0.3)
+    ax_thr.legend()
+    st.pyplot(fig_thr)
