@@ -313,67 +313,88 @@ else:
     st.info("Enter parameters in the sidebar and click **'Run Simulation'** to begin.")
 
 # ======================================================================
-# THRUST CALCULATOR – FINAL, VERIFIED, kgf OUTPUT
+# THRUST CALCULATOR – FINAL CORRECT VERSION (N → kgf)
 # ======================================================================
+st.title("Thrust Calculator")
 st.sidebar.markdown("---")
 st.sidebar.subheader("Thrust Calculator (19×12E)")
 
-# Polynomials in NEWTONS (from graph points)
+# ----------------------------------------------------------------------
+# Polynomial coefficients FROM GRAPH → output in NEWTONS
+# Format for np.polyval: [a, b, c] where y = a*x² + b*x + c
+# ----------------------------------------------------------------------
 RPM_POLY_N = {
-    1000: [1.84639, -0.09859, -0.03061],
-    2000: [7.19558, -0.19903, -0.03036],
-    3000: [15.92096, -0.29826, -0.03044],
-    4000: [27.60008, -0.39428, -0.03074],
-    5000: [43.32771, -0.48526, -0.03123],
-    6000: [61.43988, -0.57053, -0.03187],
-    7000: [82.22525, -0.64616, -0.03273]  # NEGATIVE a coefficient
+    1000: [-0.03061, -0.09859,  1.84639],   # y = -0.03061x² -0.09859x +1.84639
+    2000: [-0.03036, -0.19903,  7.19558],
+    3000: [-0.03044, -0.29826, 15.92096],
+    4000: [-0.03074, -0.39428, 27.60008],
+    5000: [-0.03123, -0.48526, 43.32771],
+    6000: [-0.03187, -0.57053, 61.43988],
+    7000: [-0.03273, -0.64616, 82.22525]    # NEGATIVE a for high RPM
 }
 
-G = 9.81
+G = 9.81  # 1 kgf = 9.81 N
 
-def thrust_N(v, rpm):
-    coeffs = RPM_POLY_N[rpm]
+# ----------------------------------------------------------------------
+# Evaluate thrust in Newtons
+# ----------------------------------------------------------------------
+def thrust_N(coeffs, v):
     return np.polyval(coeffs, v)
 
+# ----------------------------------------------------------------------
+# Convert to kgf
+# ----------------------------------------------------------------------
 def thrust_kgf(v, rpm):
-    return thrust_N(v, rpm) / G
+    if rpm not in RPM_POLY_N:
+        return 0.0
+    return thrust_N(RPM_POLY_N[rpm], v) / G
 
+# ----------------------------------------------------------------------
 # Build table
-def build_table(v):
+# ----------------------------------------------------------------------
+def build_thrust_table(v):
     data = []
     for rpm in sorted(RPM_POLY_N.keys()):
         t_kgf = thrust_kgf(v, rpm)
-        data.append([rpm, f"{t_kgf:+.3f}"])
+        sign = "+" if t_kgf >= 0 else ""
+        data.append([rpm, f"{sign}{t_kgf:.3f}"])
     return pd.DataFrame(data, columns=["RPM", "Thrust (kgf)"])
 
-# Interpolate
-def interp_thrust(table, rpm):
-    df = table.copy()
-    df["Thrust"] = df["Thrust (kgf)"].str.replace("+", "").astype(float)
-    x = df["RPM"].values
-    y = df["Thrust"].values
-    return np.interp(rpm, x, y)
-
-# UI
-v = st.sidebar.number_input("Airspeed (m/s)", 0.0, 50.0, 20.0, 0.5)
-rpm = st.sidebar.number_input("RPM", 0, 8000, 5500, 100)
-
-if st.sidebar.button("Calculate"):
-    table = build_table(v)
-    st.table(table)
-    
-    t = interp_thrust(table, rpm)
-    st.markdown(f"**Thrust = {t:+.3f} kgf**")
-    
-    # Plot
-    fig, ax = plt.subplots()
-    rpms = list(RPM_POLY_N.keys())
+# ----------------------------------------------------------------------
+# Interpolate between RPMs
+# ----------------------------------------------------------------------
+def interpolate_thrust(v, rpm):
+    rpms = sorted(RPM_POLY_N.keys())
     thrusts = [thrust_kgf(v, r) for r in rpms]
-    ax.plot(rpms, thrusts, 'o-')
-    ax.scatter([rpm], [t], color='red', zorder=5)
-    ax.axhline(0, color='k', linestyle='--', alpha=0.5)
+    return np.interp(rpm, rpms, thrusts)
+
+# ----------------------------------------------------------------------
+# UI
+# ----------------------------------------------------------------------
+airspeed = st.sidebar.number_input("Airspeed (m/s)", 0.0, 50.0, 0.0, 0.5)
+rpm_input = st.sidebar.number_input("Motor RPM", 0, 8000, 5500, 100)
+
+if st.sidebar.button("Calculate Thrust"):
+    # Table
+    table = build_thrust_table(airspeed)
+    st.subheader(f"Thrust vs RPM @ {airspeed:.1f} m/s")
+    st.table(table)
+
+    # Interpolated result
+    result_kgf = interpolate_thrust(airspeed, rpm_input)
+    sign = "+" if result_kgf >= 0 else ""
+    st.markdown(f"**Thrust at {rpm_input:,} RPM = {sign}{result_kgf:.3f} kgf**")
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    rpms = sorted(RPM_POLY_N.keys())
+    thrusts = [thrust_kgf(airspeed, r) for r in rpms]
+    ax.plot(rpms, thrusts, "o-", color="teal", label="Curve")
+    ax.scatter([rpm_input], [result_kgf], color="red", s=80, zorder=5, label=f"{rpm_input} RPM")
+    ax.axhline(0, color="gray", linestyle="--", alpha=0.7)
     ax.set_xlabel("RPM")
     ax.set_ylabel("Thrust (kgf)")
+    ax.set_title(f"19×12E @ {airspeed:.1f} m/s")
     ax.grid(True, alpha=0.3)
+    ax.legend()
     st.pyplot(fig)
-
