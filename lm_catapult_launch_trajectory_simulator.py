@@ -127,7 +127,7 @@ st.title("LM Catapult Launch Projectile Motion Simulator")
 st.markdown("**- LM v0 / CL_max 0.66 from CFD / Propeller 19*12E / Max RPM 6200**")
 st.markdown("**- Motion Analysis with Catapult Initial Setting, Aerodynamics, and LM's Properties**")
 st.markdown("**- Ignore Propeller Thrust, Attitude, and Control Effect**")
-st.markdown("**- **Thrust is now provided by the Thrust Calculator below**")
+st.markdown("**- Thrust is now provided by the Thrust Calculator below**")
 
 # ================================
 # === DIAGRAM ===
@@ -328,39 +328,46 @@ if st.sidebar.button("Calculate Thrust"):
     st.pyplot(fig)
 
 # ======================================================================
-# POST-THRUST-CALCULATOR: ROC = v * (T - D) / M
-# → T comes from Thrust Calculator (result_kgf)
+# NEW: ROC CALCULATION BUTTON (uses simulation + thrust calculator)
 # ======================================================================
-st.markdown("---")
-st.subheader("Rate of Climb (ROC) from Last Simulation")
+if st.sidebar.button("Calculate ROC"):
+    # --- 1. Must have run simulation first ---
+    if ('v0' not in locals() or 'mass' not in locals() or 
+        'rho' not in locals() or 'area' not in locals() or 'Cd' not in locals()):
+        st.warning("Please **Run Simulation** first to get launch conditions.")
+    else:
+        # --- 2. Drag at launch speed ---
+        q0 = 0.5 * rho * v0**2
+        D_N = q0 * area * Cd
+        D_kgf = D_N / g
 
-if ('v0' in locals() and 'mass' in locals() and 'rho' in locals() and
-    'area' in locals() and 'Cd' in locals()):
-    
-    q0 = 0.5 * rho * v0**2
-    D_N = q0 * area * Cd
-    D_kgf = D_N / g
+        # --- 3. Thrust from calculator ---
+        if 'result_kgf' not in locals():
+            st.warning("Please **Calculate Thrust** first to get T.")
+            T_kgf = 0.0
+        else:
+            T_kgf = result_kgf
 
-    # Use Thrust Calculator result if available
-    T_kgf = result_kgf if 'result_kgf' in locals() else 0.0
+        # --- 4. ROC formula ---
+        excess_kgf = T_kgf - D_kgf
+        roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
 
-    excess_kgf = T_kgf - D_kgf
-    roc = v0 * (excess_kgf / mass) if mass > 0 else 0.0
+        # --- 5. Display results ---
+        st.markdown("---")
+        st.subheader("Rate of Climb (ROC) = v × (T − D) / M")
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Launch Speed (v)", f"{v0:.1f} m/s")
-    with col2:
-        st.metric("Drag (D)", f"{D_kgf:.3f} kgf")
-    with col3:
-        st.metric("Thrust (T)", f"{T_kgf:.3f} kgf")
-    with col4:
-        st.metric("ROC", f"{roc:.2f} m/s", delta=f"{roc:+.1f}")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Speed (v)", f"{v0:.1f} m/s")
+        with col2:
+            st.metric("Drag (D)", f"{D_kgf:.3f} kgf")
+        with col3:
+            st.metric("Thrust (T)", f"{T_kgf:.3f} kgf")
+        with col4:
+            st.metric("ROC", f"{roc:.2f} m/s", delta=f"{roc:+.1f}")
 
-    st.latex(
-        r"\text{ROC} = v \times \frac{T - D}{M} = "
-        f"{v0:.1f} \\times \\frac{{{T_kgf:.3f} - {D_kgf:.3f}}}{{{mass:.2f}}} = "
-        f"\\boxed{{{roc:.2f}\\,\\text{{m/s}}}}"
-    )
-else:
-    st.info("Run the **Projectile Simulator** first to enable ROC calculation.")
+        st.latex(
+            r"\text{ROC} = v \times \frac{T - D}{M} = "
+            f"{v0:.1f} \\times \\frac{{{T_kgf:.3f} - {D_kgf:.3f}}}{{{mass:.2f}}} = "
+            f"\\boxed{{{roc:.2f}\\,\\text{{m/s}}}}"
+        )
